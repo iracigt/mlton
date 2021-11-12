@@ -154,7 +154,8 @@ void releaseHeap (GC_state s, GC_heap h) {
              (uintptr_t)(h->start),
              uintmaxToCommaString(h->size),
              uintmaxToCommaString(h->withMapsSize - h->size));
-  GC_release (h->start, h->withMapsSize);
+  // GC_release (h->start, h->withMapsSize);
+  _ml_heap_inuse = FALSE;
   initHeap (s, h);
 }
 
@@ -196,6 +197,52 @@ void shrinkHeap (GC_state s, GC_heap h, size_t keepSize) {
  * returns TRUE if it is able to allocate the space, and returns FALSE
  * if it is unable.
  */
+bool createHeap (GC_state s, GC_heap h,
+                 size_t desiredSize,
+                 size_t minSize) {
+  size_t maxSize;
+  size_t withMapsHeapSize;
+
+  if (TRUE or DEBUG_MEM)
+    // fprintf (stderr,
+    printf( 
+             "createHeap  desired size = %s  min size = %s\n",
+             uintmaxToCommaString(desiredSize),
+             uintmaxToCommaString(minSize));
+  if (desiredSize < minSize)
+    desiredSize = minSize;
+  minSize = align (minSize, s->sysvals.pageSize);
+  desiredSize = align (desiredSize, s->sysvals.pageSize);
+  assert (isHeapInit (h) and NULL == h->start);
+  
+  maxSize = _ml_heap_end - _ml_heap_start;
+
+  withMapsHeapSize = desiredSize + sizeofCardMapAndCrossMap (s, desiredSize);
+  if (withMapsHeapSize > maxSize or _ml_heap_inuse) {
+    // TODO: implement a binary search to find max usable heap size
+    return FALSE;
+  }
+
+  _ml_heap_inuse = TRUE;
+  h->start = (void *)_ml_heap_start;
+  h->size = desiredSize;
+  h->withMapsSize = withMapsHeapSize;
+  if (h->size > s->cumulativeStatistics.maxHeapSize)
+    s->cumulativeStatistics.maxHeapSize = h->size;
+  assert (minSize <= h->size and h->size <= desiredSize);
+  if (TRUE or DEBUG or s->controls.messages)
+    // fprintf (stderr,
+    printf(
+              "[GC: Created heap at "FMTPTR" of size %s bytes (+ %s bytes card/cross map).]\n",
+              (uintptr_t)(h->start),
+              uintmaxToCommaString(h->size),
+              uintmaxToCommaString(h->withMapsSize - h->size));
+  return TRUE;
+  
+}
+
+
+#if FALSE
 bool createHeap (GC_state s, GC_heap h,
                  size_t desiredSize,
                  size_t minSize) {
@@ -287,6 +334,10 @@ bool createHeap (GC_state s, GC_heap h,
   }
   return FALSE;
 }
+#endif
+
+
+
 
 /* createHeapSecondary (s, desiredSize)
  */
